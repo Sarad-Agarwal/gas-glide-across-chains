@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
+import { createChart, IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
 import { useGasStore } from '@/store/gasStore';
 import { CHAIN_CONFIGS } from '@/config/chains';
 import { motion } from 'framer-motion';
@@ -10,7 +9,7 @@ import { motion } from 'framer-motion';
 export const GasChart = () => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<Map<string, ISeriesApi<'candlestick'>>>(new Map());
+  const seriesRef = useRef<Map<string, ISeriesApi<'Candlestick'>>>(new Map());
   const { chains } = useGasStore();
 
   useEffect(() => {
@@ -81,15 +80,29 @@ export const GasChart = () => {
     Object.entries(chains).forEach(([chainKey, chainData]) => {
       const series = seriesRef.current.get(chainKey);
       if (series && chainData.history.length > 0) {
-        const candlestickData = chainData.history.map(point => ({
-          time: Math.floor(point.timestamp / 1000),
-          open: point.open,
-          high: point.high,
-          low: point.low,
-          close: point.close,
-        }));
-        
-        series.setData(candlestickData);
+        // Sort data by timestamp and remove duplicates
+        const sortedData = chainData.history
+          .sort((a, b) => a.timestamp - b.timestamp)
+          .filter((point, index, array) => {
+            // Remove duplicates by keeping only the first occurrence of each timestamp
+            return index === 0 || point.timestamp !== array[index - 1].timestamp;
+          });
+
+        if (sortedData.length > 0) {
+          const candlestickData: CandlestickData[] = sortedData.map(point => ({
+            time: Math.floor(point.timestamp / 1000) as any,
+            open: point.open,
+            high: point.high,
+            low: point.low,
+            close: point.close,
+          }));
+          
+          // Ensure the data is properly sorted by time
+          candlestickData.sort((a, b) => (a.time as number) - (b.time as number));
+          
+          console.log(`Setting chart data for ${chainKey}:`, candlestickData.length, 'points');
+          series.setData(candlestickData);
+        }
       }
     });
   }, [chains]);

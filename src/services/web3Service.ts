@@ -8,6 +8,7 @@ class Web3Service {
   private providers: Map<string, ethers.WebSocketProvider> = new Map();
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private ethProvider: ethers.WebSocketProvider | null = null;
+  private lastTimestamps: Map<string, number> = new Map();
 
   async initialize() {
     console.log('Initializing Web3 Service...');
@@ -52,22 +53,36 @@ class Web3Service {
             ? Number(feeData.maxPriorityFeePerGas) / 1e9 
             : 2; // Default 2 Gwei
           
+          // Ensure unique timestamps
+          const currentTimestamp = Date.now();
+          const lastTimestamp = this.lastTimestamps.get(chainKey) || 0;
+          const uniqueTimestamp = currentTimestamp > lastTimestamp ? currentTimestamp : lastTimestamp + 1000;
+          
+          this.lastTimestamps.set(chainKey, uniqueTimestamp);
+          
+          // Generate more realistic OHLC data
+          const variance = baseFee * 0.1; // 10% variance
+          const open = baseFee + (Math.random() - 0.5) * variance;
+          const close = baseFee + (Math.random() - 0.5) * variance;
+          const high = Math.max(open, close) + Math.random() * variance;
+          const low = Math.min(open, close) - Math.random() * variance;
+
           const gasPoint: GasPoint = {
-            timestamp: block.timestamp * 1000,
+            timestamp: uniqueTimestamp,
             baseFee,
             priorityFee,
             totalFee: baseFee + priorityFee,
-            open: baseFee,
-            high: baseFee + 5,
-            low: baseFee - 5,
-            close: baseFee,
+            open: Math.max(0, open),
+            high: Math.max(0, high),
+            low: Math.max(0, low),
+            close: Math.max(0, close),
           };
 
           useGasStore.getState().updateChainData(chainKey as any, {
             baseFee,
             priorityFee,
             isConnected: true,
-            lastUpdated: Date.now(),
+            lastUpdated: uniqueTimestamp,
           });
 
           useGasStore.getState().addGasPoint(chainKey as any, gasPoint);
@@ -124,6 +139,7 @@ class Web3Service {
     
     this.providers.clear();
     this.intervals.clear();
+    this.lastTimestamps.clear();
   }
 }
 
